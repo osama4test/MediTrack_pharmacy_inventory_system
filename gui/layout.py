@@ -166,6 +166,11 @@ def build_gui():
 
     events.set_tree(tree)
     events.set_entries(entries)
-    events.load_data()
+    def load_data_and_set_focus():
+     events.load_data()
+    root.after(100, lambda: entries[0].focus_force())
+
+    root.after(100, load_data_and_set_focus)
+     
 
     root.mainloop()
