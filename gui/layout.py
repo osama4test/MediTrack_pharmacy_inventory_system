@@ -1,7 +1,7 @@
-import tkinter as tk
-from tkinter import ttk
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
 from gui import events
-from gui.events import reset_filters 
+from gui.events import reset_filters
 
 def create_tooltip(widget, text):
     def on_enter(event):
@@ -12,63 +12,65 @@ def create_tooltip(widget, text):
     widget.bind("<Leave>", on_leave)
 
 def build_gui():
-    root = tk.Tk()
+    root = tb.Window(themename="flatly")
     root.title("Pharmacy Inventory System")
-    root.geometry("980x720")
+    root.geometry("1020x740")
 
-    style = ttk.Style()
-    style.theme_use("clam")
-    style.map("Treeview", background=[('selected', '#347083')], foreground=[('selected', 'white')])
-
-    tooltip_label = tk.Label(root, text="", fg="gray", anchor="w")
+    # Tooltip label at the bottom
+    events.tooltip_var = tb.StringVar()
+    tooltip_label = tb.Label(root, textvariable=events.tooltip_var, bootstyle="secondary")
     tooltip_label.pack(side="bottom", fill="x")
-    events.tooltip_var = tk.StringVar()
-    tooltip_label.config(textvariable=events.tooltip_var)
 
-    dashboard_frame = tk.Frame(root, pady=10)
+    # Dashboard
+    dashboard_frame = tb.Frame(root, padding=10)
     dashboard_frame.pack(fill="x", padx=15)
 
-    lbl_total = tk.Label(dashboard_frame, text="📦 Total Medicines: 0", font=("Arial", 12, "bold"))
-    lbl_expired = tk.Label(dashboard_frame, text="❌ Expired: 0", fg="red", font=("Arial", 12, "bold"))
-    lbl_near_expiry = tk.Label(dashboard_frame, text="⚠️ Near Expiry: 0", fg="orange", font=("Arial", 12, "bold"))
-    lbl_low_stock = tk.Label(dashboard_frame, text="🔔 Low Stock: 0", fg="brown", font=("Arial", 12, "bold"))
+    lbl_total = tb.Label(dashboard_frame, text="📦 Total Medicines: 0", font=("Segoe UI", 12, "bold"))
+    lbl_expired = tb.Label(dashboard_frame, text="❌ Expired: 0", font=("Segoe UI", 12, "bold"), foreground="red")
+    lbl_near_expiry = tb.Label(dashboard_frame, text="⚠️ Near Expiry: 0", font=("Segoe UI", 12, "bold"), foreground="orange")
+    lbl_low_stock = tb.Label(dashboard_frame, text="🔔 Low Stock: 0", font=("Segoe UI", 12, "bold"), foreground="brown")
 
     for lbl in (lbl_total, lbl_expired, lbl_near_expiry, lbl_low_stock):
-        lbl.pack(side="left", padx=20)
+        lbl.pack(side="left", padx=25)
 
     events.set_dashboard_labels(lbl_total, lbl_expired, lbl_near_expiry, lbl_low_stock)
 
-    form_frame = tk.LabelFrame(root, text="Add / Edit Medicine", padx=15, pady=15)
+    # Form section
+    form_frame = tb.Labelframe(root, text="Add / Edit Medicine", padding=20)
     form_frame.pack(fill="x", padx=15, pady=10)
 
     labels = ["Name*", "Batch No", "Mfg Date (YYYY-MM-DD)", "Expiry Date*", "Quantity*", "Price"]
     entries = []
     for i, label in enumerate(labels):
-        tk.Label(form_frame, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="e", padx=6, pady=8)
-        entry = tk.Entry(form_frame, width=32)
-        entry.grid(row=i // 2, column=(i % 2) * 2 + 1, padx=6, pady=8)
+        tb.Label(form_frame, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="e", padx=8, pady=10)
+        entry = tb.Entry(form_frame, width=30, bootstyle="light")
+        entry.grid(row=i // 2, column=(i % 2) * 2 + 1, padx=8, pady=10)
         entries.append(entry)
 
-    btn_frame = tk.Frame(form_frame)
-    btn_frame.grid(row=3, column=0, columnspan=4, pady=12)
-    btn_add = tk.Button(btn_frame, text="Add Medicine", width=15, command=lambda: events.add_medicine(entries))
-    btn_update = tk.Button(btn_frame, text="Update Selected", width=15, command=lambda: events.edit_selected(entries))
-    btn_add.pack(side="left", padx=12)
-    btn_update.pack(side="left", padx=12)
+    # Buttons
+    btn_frame = tb.Frame(form_frame)
+    btn_frame.grid(row=3, column=0, columnspan=4, pady=15)
+    btn_add = tb.Button(btn_frame, text="Add Medicine", bootstyle="success", width=16,
+                        command=lambda: events.add_medicine(entries))
+    btn_update = tb.Button(btn_frame, text="Update Selected", bootstyle="info", width=16,
+                           command=lambda: events.edit_selected(entries))
+    btn_add.pack(side="left", padx=15)
+    btn_update.pack(side="left", padx=15)
 
     create_tooltip(btn_add, "Add a new medicine to inventory")
     create_tooltip(btn_update, "Update the selected medicine record")
 
-    filter_search_frame = tk.Frame(root)
-    filter_search_frame.pack(fill="x", padx=15, pady=5)
+    # Search and filter toolbar
+    toolbar = tb.Frame(root)
+    toolbar.pack(fill="x", padx=15, pady=5)
 
-    search_frame = tk.Frame(filter_search_frame)
+    search_frame = tb.Frame(toolbar)
     search_frame.pack(side="left", fill="x", expand=True)
 
-    tk.Label(search_frame, text="🔍 Search by Name or Batch:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
-    search_entry = tk.Entry(search_frame, width=35)
-    search_entry.pack(side="left")
+    tb.Label(search_frame, text="🔍 Search by Name or Batch:", font=("Segoe UI", 10)).pack(side="left", padx=(0, 5))
+    search_entry = tb.Entry(search_frame, width=35)
     search_entry.insert(0, "Type to search...")
+    search_entry.pack(side="left")
 
     def clear_placeholder(event):
         if search_entry.get() == "Type to search...":
@@ -81,43 +83,30 @@ def build_gui():
     search_entry.bind("<FocusIn>", clear_placeholder)
     search_entry.bind("<FocusOut>", add_placeholder)
 
-    btn_search = tk.Button(search_frame, text="Search", width=8,
-                           command=lambda: events.search_medicines(search_entry.get()))
-    btn_reset = tk.Button(search_frame, text="Reset", width=8,
-                          command=lambda: [search_entry.delete(0, 'end'), events.load_data(show_popup=False)])
-    btn_search.pack(side="left", padx=(10, 5))
-    btn_reset.pack(side="left")
+    tb.Button(search_frame, text="Search", width=8,
+              command=lambda: events.search_medicines(search_entry.get()), bootstyle="primary").pack(side="left", padx=5)
+    tb.Button(search_frame, text="Reset", width=8,
+              command=lambda: [search_entry.delete(0, 'end'), events.load_data(show_popup=False)],
+              bootstyle="secondary").pack(side="left")
 
-    create_tooltip(btn_search, "Search medicines by name or batch number")
-    create_tooltip(btn_reset, "Clear search and show all medicines")
-
-    filter_frame = tk.Frame(filter_search_frame)
+    # Filter Buttons
+    filter_frame = tb.Frame(toolbar)
     filter_frame.pack(side="right")
 
-    # ✅ Fix applied here
-    btn_show_all = tk.Button(filter_frame, text="Show All", width=12,
-                             command=reset_filters)
-    btn_expired = tk.Button(filter_frame, text="Only Expired", width=12,
-                            command=lambda: events.filter_status("❌"))
-    btn_near_expiry = tk.Button(filter_frame, text="Near Expiry", width=12,
-                                command=lambda: events.filter_status("⚠️"))
+    tb.Button(filter_frame, text="Show All", width=12, command=reset_filters, bootstyle="secondary").pack(side="left", padx=6)
+    tb.Button(filter_frame, text="Only Expired", width=12, command=lambda: events.filter_status("❌"), bootstyle="danger").pack(side="left", padx=6)
+    tb.Button(filter_frame, text="Near Expiry", width=12, command=lambda: events.filter_status("⚠️"), bootstyle="warning").pack(side="left", padx=6)
 
-    for btn in (btn_show_all, btn_expired, btn_near_expiry):
-        btn.pack(side="left", padx=6)
-
-    create_tooltip(btn_show_all, "Show all medicines")
-    create_tooltip(btn_expired, "Filter only expired medicines")
-    create_tooltip(btn_near_expiry, "Filter medicines near expiry")
-
-    tree_frame = tk.Frame(root)
+    # Treeview Section
+    tree_frame = tb.Frame(root)
     tree_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
     columns = ["Name", "Batch", "Mfg Date", "Expiry Date", "Quantity", "Price", "Status"]
-    tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
+    tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle="info")
 
     tree.tag_configure("expired", background="#ffcccc")
-    tree.tag_configure("near_expiry", background="#ffe6b3")
-    tree.tag_configure("low_stock", background="#d2b48c")
+    tree.tag_configure("near_expiry", background="#fff4cc")
+    tree.tag_configure("low_stock", background="#ecd9c6")
 
     def heading_click(col):
         def handler():
@@ -141,11 +130,12 @@ def build_gui():
 
     update_sort_indicators(None)
 
-    ctrl_btn_frame = tk.Frame(tree_frame)
+    # Control buttons
+    ctrl_btn_frame = tb.Frame(tree_frame)
     ctrl_btn_frame.pack(pady=10)
 
-    btn_delete = tk.Button(ctrl_btn_frame, text="Delete Selected", width=15, command=events.delete_selected)
-    btn_export = tk.Button(ctrl_btn_frame, text="Export to CSV", width=15, command=events.export_to_csv)
+    btn_delete = tb.Button(ctrl_btn_frame, text="Delete Selected", width=18, command=events.delete_selected, bootstyle="danger")
+    btn_export = tb.Button(ctrl_btn_frame, text="Export to CSV", width=18, command=events.export_to_csv, bootstyle="success")
 
     btn_delete.pack(side="left", padx=15)
     btn_export.pack(side="left", padx=15)
@@ -153,6 +143,7 @@ def build_gui():
     create_tooltip(btn_delete, "Delete selected medicine")
     create_tooltip(btn_export, "Export current data to CSV file")
 
+    # Tree selection logic
     btn_update.config(state="disabled")
     btn_delete.config(state="disabled")
 

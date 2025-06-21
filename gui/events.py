@@ -147,6 +147,7 @@ def add_medicine(entries):
     messagebox.showinfo("Success", "Medicine added successfully!")
     for e in entries:
         e.delete(0, 'end')
+    entries[0].focus_set()
     load_data()
 
 
@@ -196,7 +197,6 @@ def load_data(show_popup=True):
             msg += f"🔔 Low Stock Medicines (<{LOW_STOCK_THRESHOLD}): {len(low_stock)}\n"
         messagebox.showwarning("Inventory Alert", msg.strip())
 
-        # ✅ Fix: Return focus to name entry after popup closes
         if form_entries:
             form_entries[0].focus_set()
 
@@ -274,6 +274,7 @@ def edit_selected(entries):
         messagebox.showinfo("Updated", f"Medicine ID {med_id} has been updated.")
         for e in entries:
             e.delete(0, 'end')
+        entries[0].focus_set()
         load_data(show_popup=False)
     else:
         messagebox.showerror("Error", "Update failed. Record not found.")
