@@ -91,7 +91,8 @@ def build_gui():
               command=lambda: [search_entry.delete(0, 'end'), events.load_data(show_popup=False)],
               bootstyle="secondary").pack(side="left")
     tb.Button(root, text="💳 Checkout", bootstyle="primary outline", width=20,
-          command=open_checkout_window).pack(pady=(0, 10))
+          command=lambda: open_checkout_window(on_checkout_complete=events.load_data)).pack(pady=(0, 10))
+
 
 
     # Filter Buttons

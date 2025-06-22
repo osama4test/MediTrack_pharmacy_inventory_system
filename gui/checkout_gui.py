@@ -5,13 +5,12 @@ from tkinter import ttk
 import datetime
 import os
 
-# Sample data (to be fetched from DB)
 from database.db_handler import fetch_all_medicines, update_medicine_by_id
 
 cart = []
 selected_medicine = None
 
-def open_checkout_window():
+def open_checkout_window(on_checkout_complete=None):  # ✅ Added optional callback
     global selected_medicine
     selected_medicine = None
     cart.clear()
@@ -35,6 +34,9 @@ def open_checkout_window():
     search_entry = tb.Entry(inner_search_frame, width=30)
     search_entry.pack(side="left")
 
+    result_box = Listbox(search_frame, height=6, font=("Segoe UI", 10))
+    result_box.pack(fill="x", pady=8)
+
     def search():
         result_box.delete(0, "end")
         keyword = search_entry.get().lower()
@@ -44,9 +46,6 @@ def open_checkout_window():
                 result_box.insert("end", f"{row[0]} | {row[1]} | Qty: {row[5]} | Price: {row[6]}")
 
     tb.Button(inner_search_frame, text="Search", command=search, bootstyle="primary").pack(side="left", padx=10)
-
-    result_box = Listbox(search_frame, height=6, font=("Segoe UI", 10))
-    result_box.pack(fill="x", pady=8)
 
     def on_select(event):
         global selected_medicine
@@ -97,11 +96,7 @@ def open_checkout_window():
             if qty <= 0 or qty > selected_medicine[5]:
                 raise ValueError
             subtotal = round(qty * selected_medicine[6], 2)
-
-            # Insert in Treeview first and get its ID
             tree_id = cart_tree.insert("", "end", values=(selected_medicine[1], qty, selected_medicine[6], subtotal))
-
-            # Store tree_id with cart item
             cart.append({
                 "id": selected_medicine[0],
                 "name": selected_medicine[1],
@@ -110,7 +105,6 @@ def open_checkout_window():
                 "subtotal": subtotal,
                 "tree_id": tree_id
             })
-
             qty_entry.delete(0, "end")
             update_total()
         except:
@@ -127,12 +121,10 @@ def open_checkout_window():
 
         for tree_id in selected:
             cart_tree.delete(tree_id)
-            # Remove from cart by matching tree_id
             for i, item in enumerate(cart):
                 if item.get("tree_id") == tree_id:
                     del cart[i]
                     break
-
         update_total()
 
     tb.Button(window, text="🗑 Remove Selected Item", command=remove_selected_cart_item,
@@ -149,7 +141,6 @@ def open_checkout_window():
 
         for item in cart:
             receipt_lines.append(f"{item['name']} x{item['qty']} @ Rs.{item['price']} = Rs.{item['subtotal']}")
-            # Update DB
             med = next((m for m in fetch_all_medicines() if m[0] == item['id']), None)
             if med:
                 updated_qty = med[5] - item['qty']
@@ -168,6 +159,19 @@ def open_checkout_window():
         messagebox.showinfo("Checkout Successful", f"Receipt generated:\n{file_path}")
         cart.clear()
         selected_medicine = None
+
+        # ✅ Refresh result_box with current DB data
+        current_keyword = search_entry.get().lower()
+        result_box.delete(0, "end")
+        for row in fetch_all_medicines():
+            name = row[1].lower()
+            if current_keyword in name:
+                result_box.insert("end", f"{row[0]} | {row[1]} | Qty: {row[5]} | Price: {row[6]}")
+
+        # ✅ Trigger layout refresh if provided
+        if on_checkout_complete:
+            on_checkout_complete()
+
         window.destroy()
 
     tb.Button(window, text="Checkout & Print Slip", bootstyle="primary", command=checkout).pack(pady=15)
