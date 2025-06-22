@@ -14,7 +14,7 @@ def create_tooltip(widget, text):
 def build_gui():
     root = tb.Window(themename="flatly")
     root.title("Pharmacy Inventory System")
-    root.geometry("1020x740")
+    root.state('zoomed')
 
     # Tooltip label at the bottom
     events.tooltip_var = tb.StringVar()
@@ -39,7 +39,7 @@ def build_gui():
     form_frame = tb.Labelframe(root, text="Add / Edit Medicine", padding=20)
     form_frame.pack(fill="x", padx=15, pady=10)
 
-    labels = ["Name*", "Batch No", "Mfg Date (YYYY-MM-DD)", "Expiry Date*", "Quantity*", "Price"]
+    labels = ["Name*", "Batch No", "Mfg Date (YYYY-MM-DD)", "Expiry Date*", "Quantity*", "Price", "Demand"]
     entries = []
     for i, label in enumerate(labels):
         tb.Label(form_frame, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="e", padx=8, pady=10)
@@ -49,7 +49,7 @@ def build_gui():
 
     # Buttons
     btn_frame = tb.Frame(form_frame)
-    btn_frame.grid(row=3, column=0, columnspan=4, pady=15)
+    btn_frame.grid(row=4, column=0, columnspan=4, pady=15)
     btn_add = tb.Button(btn_frame, text="Add Medicine", bootstyle="success", width=16,
                         command=lambda: events.add_medicine(entries))
     btn_update = tb.Button(btn_frame, text="Update Selected", bootstyle="info", width=16,
@@ -101,7 +101,7 @@ def build_gui():
     tree_frame = tb.Frame(root)
     tree_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
-    columns = ["Name", "Batch", "Mfg Date", "Expiry Date", "Quantity", "Price", "Status"]
+    columns = ["Name", "Batch", "Mfg Date", "Expiry Date", "Quantity", "Price", "Demand", "Status"]
     tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle="info")
 
     tree.tag_configure("expired", background="#ffcccc")
@@ -166,11 +166,11 @@ def build_gui():
 
     events.set_tree(tree)
     events.set_entries(entries)
-    def load_data_and_set_focus():
-     events.load_data()
-    root.after(100, lambda: entries[0].focus_force())
 
+    def load_data_and_set_focus():
+        events.load_data()
+
+    root.after(100, lambda: entries[0].focus_force())
     root.after(100, load_data_and_set_focus)
-     
 
     root.mainloop()

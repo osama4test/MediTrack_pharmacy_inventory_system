@@ -18,7 +18,7 @@ LOW_STOCK_THRESHOLD = 10
 tree_widget = None
 form_entries = None
 
-dashboard_labels = {
+dashboards_labels = {
     'total': None,
     'expired': None,
     'near_expiry': None,
@@ -38,24 +38,20 @@ current_filters = {
 
 tooltip_var = None
 
-
 def set_dashboard_labels(lbl_total, lbl_expired, lbl_near_expiry, lbl_low_stock):
-    dashboard_labels['total'] = lbl_total
-    dashboard_labels['expired'] = lbl_expired
-    dashboard_labels['near_expiry'] = lbl_near_expiry
-    dashboard_labels['low_stock'] = lbl_low_stock
-
+    dashboards_labels['total'] = lbl_total
+    dashboards_labels['expired'] = lbl_expired
+    dashboards_labels['near_expiry'] = lbl_near_expiry
+    dashboards_labels['low_stock'] = lbl_low_stock
 
 def set_tree(tree):
     global tree_widget
     tree_widget = tree
     threading.Thread(target=auto_refresh, daemon=True).start()
 
-
 def set_entries(entries):
     global form_entries
     form_entries = entries
-
 
 def set_sorting(column):
     global sort_column, sort_reverse
@@ -65,7 +61,6 @@ def set_sorting(column):
         sort_column = column
         sort_reverse = False
     load_data(show_popup=False)
-
 
 def set_filters(min_q=None, max_q=None, min_p=None, max_p=None, status=None):
     global current_filters
@@ -77,7 +72,6 @@ def set_filters(min_q=None, max_q=None, min_p=None, max_p=None, status=None):
         'status': status
     })
     load_data(show_popup=False)
-
 
 def apply_filters(rows):
     filtered = []
@@ -100,7 +94,6 @@ def apply_filters(rows):
         filtered.append(row)
     return filtered
 
-
 def apply_sort(rows):
     if not sort_column:
         return rows
@@ -112,6 +105,7 @@ def apply_sort(rows):
         "Expiry Date": 4,
         "Quantity": 5,
         "Price": 6,
+        "Demand": 7
     }
     idx = col_idx_map.get(sort_column)
     if idx is None:
@@ -122,7 +116,7 @@ def apply_sort(rows):
         try:
             if sort_column in ["Mfg Date", "Expiry Date"]:
                 return datetime.strptime(val, "%Y-%m-%d")
-            elif sort_column in ["Quantity", "Price"]:
+            elif sort_column in ["Quantity", "Price", "Demand"]:
                 return float(val)
             return val.lower() if isinstance(val, str) else val
         except:
@@ -130,26 +124,33 @@ def apply_sort(rows):
 
     return sorted(rows, key=sort_key, reverse=sort_reverse)
 
-
 def add_medicine(entries):
-    values = [e.get().strip() for e in entries]
-    if not values[0] or not values[3] or not values[4]:
-        messagebox.showwarning("Input Error", "Please fill required fields (Name, Expiry Date, Quantity).")
-        return
-    try:
-        values[4] = int(values[4])
-        values[5] = float(values[5]) if values[5] else 0.0
-    except ValueError:
-        messagebox.showerror("Input Error", "Invalid quantity or price.")
+    values = []
+    for i, entry in enumerate(entries):
+        val = entry.get().strip()
+        # Ensure numeric fields are converted properly
+        if i == 4:  # Quantity
+            try:
+                val = int(val)
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Quantity must be an integer.")
+                return
+        elif i == 5:  # Price
+            try:
+                val = float(val)
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Price must be a number.")
+                return
+        # No conversion for Demand (index 6), it stays as string
+        values.append(val)
+
+    if not values[0] or not values[3] or not str(values[4]).isdigit():
+        messagebox.showerror("Missing Fields", "Please fill in all required fields correctly.")
         return
 
     insert_medicine(values)
-    messagebox.showinfo("Success", "Medicine added successfully!")
-    for e in entries:
-        e.delete(0, 'end')
-    entries[0].focus_set()
+    messagebox.showinfo("Success", "Medicine added successfully.")
     load_data()
-
 
 def load_data(show_popup=True):
     expired, near_expiry, low_stock = [], [], []
@@ -178,14 +179,14 @@ def load_data(show_popup=True):
 
         tree_widget.insert('', 'end', iid=str(med_id), values=row[1:] + (status,), tags=tags)
 
-    if dashboard_labels['total']:
-        dashboard_labels['total'].config(text=f"📦 Total Medicines: {len(sorted_rows)}")
-    if dashboard_labels['expired']:
-        dashboard_labels['expired'].config(text=f"❌ Expired: {len(expired)}")
-    if dashboard_labels['near_expiry']:
-        dashboard_labels['near_expiry'].config(text=f"⚠️ Near Expiry: {len(near_expiry)}")
-    if dashboard_labels['low_stock']:
-        dashboard_labels['low_stock'].config(text=f"🔔 Low Stock: {len(low_stock)}")
+    if dashboards_labels['total']:
+        dashboards_labels['total'].config(text=f"📦 Total Medicines: {len(sorted_rows)}")
+    if dashboards_labels['expired']:
+        dashboards_labels['expired'].config(text=f"❌ Expired: {len(expired)}")
+    if dashboards_labels['near_expiry']:
+        dashboards_labels['near_expiry'].config(text=f"⚠️ Near Expiry: {len(near_expiry)}")
+    if dashboards_labels['low_stock']:
+        dashboards_labels['low_stock'].config(text=f"🔔 Low Stock: {len(low_stock)}")
 
     if show_popup and (expired or near_expiry or low_stock):
         msg = ""
@@ -199,7 +200,6 @@ def load_data(show_popup=True):
 
         if form_entries:
             form_entries[0].focus_set()
-
 
 def delete_selected():
     selected = tree_widget.selection()
@@ -217,7 +217,6 @@ def delete_selected():
             load_data(show_popup=False)
         else:
             messagebox.showerror("Error", "Medicine not found or could not be deleted.")
-
 
 def search_medicines(query):
     query = query.strip().lower()
@@ -248,10 +247,8 @@ def search_medicines(query):
 
         tree_widget.insert('', 'end', iid=str(med_id), values=row[1:] + (status,), tags=tags)
 
-
 def filter_status(status_filter):
     set_filters(status=status_filter)
-
 
 def edit_selected(entries):
     selected = tree_widget.selection()
@@ -265,8 +262,9 @@ def edit_selected(entries):
     try:
         values[4] = int(values[4])
         values[5] = float(values[5]) if values[5] else 0.0
+        values[6] = int(values[6]) if values[6] else 0
     except ValueError:
-        messagebox.showerror("Input Error", "Invalid quantity or price.")
+        messagebox.showerror("Input Error", "Invalid quantity, price or demand.")
         return
 
     med_id = selected[0]
@@ -279,7 +277,6 @@ def edit_selected(entries):
     else:
         messagebox.showerror("Error", "Update failed. Record not found.")
 
-
 def export_to_csv():
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
     if not file_path:
@@ -289,7 +286,7 @@ def export_to_csv():
     try:
         with open(file_path, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(["Name", "Batch", "Mfg Date", "Expiry Date", "Quantity", "Price", "Status"])
+            writer.writerow(["Name", "Batch", "Mfg Date", "Expiry Date", "Quantity", "Price", "Demand", "Status"])
             for row in data:
                 status_icon, days_info = check_expiry(row[4])
                 status = f"{status_icon} ({days_info})"
@@ -300,12 +297,10 @@ def export_to_csv():
     except Exception as e:
         messagebox.showerror("Export Error", str(e))
 
-
 def auto_refresh():
     while True:
         time.sleep(REFRESH_INTERVAL)
         load_data(show_popup=False)
-
 
 def reset_filters():
     global current_filters
