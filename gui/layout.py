@@ -2,6 +2,8 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from gui import events
 from gui.events import reset_filters
+from gui.checkout_gui import open_checkout_window
+
 
 def create_tooltip(widget, text):
     def on_enter(event):
@@ -88,6 +90,9 @@ def build_gui():
     tb.Button(search_frame, text="Reset", width=8,
               command=lambda: [search_entry.delete(0, 'end'), events.load_data(show_popup=False)],
               bootstyle="secondary").pack(side="left")
+    tb.Button(root, text="💳 Checkout", bootstyle="primary outline", width=20,
+          command=open_checkout_window).pack(pady=(0, 10))
+
 
     # Filter Buttons
     filter_frame = tb.Frame(toolbar)
