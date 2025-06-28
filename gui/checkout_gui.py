@@ -5,17 +5,15 @@ from tkinter import ttk
 import datetime
 import os
 
-from database.db_handler import fetch_all_medicines, update_medicine_by_id
+from database.db_handler import fetch_all_medicines, update_medicine_by_id, insert_sale_record
 
 cart = []
 selected_medicine = None
 
-def open_checkout_window(on_checkout_complete=None):  # ✅ Added optional callback
+def open_checkout_window(on_checkout_complete=None):
     global selected_medicine
     selected_medicine = None
     cart.clear()
-
-    print("Checkout window opened")
 
     window = tb.Toplevel()
     window.title("Medicine Checkout")
@@ -137,6 +135,7 @@ def open_checkout_window(on_checkout_complete=None):  # ✅ Added optional callb
             return
 
         total = sum(item["subtotal"] for item in cart)
+        date_str = datetime.datetime.now().strftime('%Y-%m-%d')
         receipt_lines = ["Receipt - Pharmacy", f"Date: {datetime.datetime.now()}\n"]
 
         for item in cart:
@@ -145,6 +144,9 @@ def open_checkout_window(on_checkout_complete=None):  # ✅ Added optional callb
             if med:
                 updated_qty = med[5] - item['qty']
                 update_medicine_by_id((med[1], med[2], med[3], med[4], updated_qty, med[6], med[7]), med[0])
+
+            # ✅ Save sale record to database
+            insert_sale_record((item['id'], item['name'], item['qty'], item['price'], item['subtotal'], date_str))
 
         receipt_lines.append(f"\nTotal Amount: Rs. {total}")
         receipt_lines.append("\nThank you for your purchase!")
@@ -168,7 +170,6 @@ def open_checkout_window(on_checkout_complete=None):  # ✅ Added optional callb
             if current_keyword in name:
                 result_box.insert("end", f"{row[0]} | {row[1]} | Qty: {row[5]} | Price: {row[6]}")
 
-        # ✅ Trigger layout refresh if provided
         if on_checkout_complete:
             on_checkout_complete()
 

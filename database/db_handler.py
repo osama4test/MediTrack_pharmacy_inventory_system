@@ -7,12 +7,11 @@ def get_connection():
     db_path = os.path.join(folder_path, "pharmacy.db")
     return sqlite3.connect(db_path)
 
-
 def create_table():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Create table if it doesn't exist
+    # Create medicines table if it doesn't exist
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS medicines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,9 +30,23 @@ def create_table():
     if "demand" not in columns:
         cursor.execute("ALTER TABLE medicines ADD COLUMN demand TEXT")
 
+    # Create sales table if it doesn't exist
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            medicine_id INTEGER,
+            name TEXT,
+            quantity INTEGER,
+            price REAL,
+            subtotal REAL,
+            date TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
+# ---------------- Medicines Table Operations ---------------- #
 
 def insert_medicine(data):
     conn = get_connection()
@@ -45,7 +58,6 @@ def insert_medicine(data):
     conn.commit()
     conn.close()
 
-
 def fetch_all_medicines():
     conn = get_connection()
     cursor = conn.cursor()
@@ -53,7 +65,6 @@ def fetch_all_medicines():
     rows = cursor.fetchall()
     conn.close()
     return rows
-
 
 def delete_medicine_by_id(med_id):
     conn = get_connection()
@@ -63,7 +74,6 @@ def delete_medicine_by_id(med_id):
     conn.commit()
     conn.close()
     return affected > 0
-
 
 def update_medicine_by_id(data, med_id):
     conn = get_connection()
@@ -77,7 +87,6 @@ def update_medicine_by_id(data, med_id):
     conn.close()
     return cursor.rowcount > 0
 
-
 def search_medicine(query):
     conn = get_connection()
     cursor = conn.cursor()
@@ -90,7 +99,6 @@ def search_medicine(query):
     conn.close()
     return rows
 
-
 def delete_medicine(name, batch):
     conn = get_connection()
     cursor = conn.cursor()
@@ -99,7 +107,6 @@ def delete_medicine(name, batch):
     conn.commit()
     conn.close()
     return affected > 0
-
 
 def update_medicine(data, old_name, old_batch):
     conn = get_connection()
@@ -113,3 +120,29 @@ def update_medicine(data, old_name, old_batch):
     conn.commit()
     conn.close()
     return affected > 0
+
+# ---------------- Sales Table Operations ---------------- #
+
+def insert_sale_record(sale):
+    """
+    sale = (medicine_id, name, quantity, price, subtotal, date)
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO sales (medicine_id, name, quantity, price, subtotal, date)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', sale)
+    conn.commit()
+    conn.close()
+
+def fetch_sales_by_date(date):
+    """
+    Returns list of sales for the given date (format: YYYY-MM-DD)
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM sales WHERE date = ?", (date,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
