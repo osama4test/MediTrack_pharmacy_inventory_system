@@ -43,6 +43,25 @@ def create_table():
         )
     ''')
 
+    # Add 'invoice_id' column if not present
+    cursor.execute("PRAGMA table_info(sales)")
+    sales_columns = [col[1] for col in cursor.fetchall()]
+    if "invoice_id" not in sales_columns:
+        cursor.execute("ALTER TABLE sales ADD COLUMN invoice_id TEXT")
+
+    # Create returns table if it doesn't exist
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS returns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            medicine_id INTEGER,
+            name TEXT,
+            quantity INTEGER,
+            price REAL,
+            refund_amount REAL,
+            date TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -125,24 +144,52 @@ def update_medicine(data, old_name, old_batch):
 
 def insert_sale_record(sale):
     """
-    sale = (medicine_id, name, quantity, price, subtotal, date)
+    sale = (medicine_id, name, quantity, price, subtotal, date, invoice_id)
     """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO sales (medicine_id, name, quantity, price, subtotal, date)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO sales (medicine_id, name, quantity, price, subtotal, date, invoice_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', sale)
     conn.commit()
     conn.close()
 
 def fetch_sales_by_date(date):
-    """
-    Returns list of sales for the given date (format: YYYY-MM-DD)
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM sales WHERE date = ?", (date,))
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def fetch_sales_by_date_range(start_date, end_date):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM sales WHERE date BETWEEN ? AND ?", (start_date, end_date))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def fetch_sales_by_invoice(invoice_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM sales WHERE invoice_id = ?", (invoice_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# ---------------- Return Table Operations ---------------- #
+
+def insert_return_record(return_entry):
+    """
+    return_entry = (medicine_id, name, quantity, price, refund_amount, date)
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO returns (medicine_id, name, quantity, price, refund_amount, date)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', return_entry)
+    conn.commit()
+    conn.close()

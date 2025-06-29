@@ -4,11 +4,40 @@ from tkinter import messagebox, Listbox
 from tkinter import ttk
 import datetime
 import os
+import uuid
 
 from database.db_handler import fetch_all_medicines, update_medicine_by_id, insert_sale_record
 
 cart = []
 selected_medicine = None
+
+def generate_receipt_text(items, total, cash, change, invoice_id):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = []
+    lines.append("        PHARMACY RECEIPT")
+    lines.append("     Address: Your Shop Address")
+    lines.append("*" * 40)
+    lines.append("             CASH RECEIPT")
+    lines.append("*" * 40)
+    lines.append(f"Date: {now}")
+    lines.append(f"Invoice ID: {invoice_id}")
+    lines.append("")
+    lines.append(f"{'Description':<25}{'Price':>10}")
+
+    for name, qty, price in items:
+        subtotal = qty * price
+        lines.append(f"{name} x{qty:<21}{subtotal:>7.2f}")
+
+    lines.append("")
+    lines.append("*" * 40)
+    lines.append(f"{'Total':<25}Rs. {total:>7.2f}")
+    lines.append(f"{'Cash':<25}Rs. {cash:>7.2f}")
+    lines.append(f"{'Change':<25}Rs. {change:>7.2f}")
+    lines.append("*" * 40)
+    lines.append("        THANK YOU FOR VISITING!")
+    lines.append("*" * 40)
+    lines.append("|| ||| || || ||||| || | || ||| |")  # Fake barcode
+    return "\n".join(lines)
 
 def open_checkout_window(on_checkout_complete=None):
     global selected_medicine
@@ -21,7 +50,7 @@ def open_checkout_window(on_checkout_complete=None):
 
     tb.Label(window, text="💊 Pharmacy Checkout", font=("Segoe UI", 16, "bold")).pack(pady=10)
 
-    # ---------------- Search Section ----------------
+    # Search Section
     search_frame = tb.Labelframe(window, text="Search Medicine", padding=10)
     search_frame.pack(fill="x", padx=20, pady=5)
 
@@ -59,7 +88,7 @@ def open_checkout_window(on_checkout_complete=None):
 
     result_box.bind("<<ListboxSelect>>", on_select)
 
-    # ---------------- Add to Cart Section ----------------
+    # Add to Cart Section
     qty_frame = tb.Labelframe(window, text="Add to Cart", padding=10)
     qty_frame.pack(fill="x", padx=20, pady=5)
 
@@ -83,7 +112,7 @@ def open_checkout_window(on_checkout_complete=None):
 
     def update_total():
         total = sum(item["subtotal"] for item in cart)
-        total_label.config(text=f"Total: Rs. {total}")
+        total_label.config(text=f"Total: Rs. {total:.2f}")
 
     def add_to_cart():
         if not selected_medicine:
@@ -110,7 +139,6 @@ def open_checkout_window(on_checkout_complete=None):
 
     tb.Button(qty_frame, text="Add to Cart", command=add_to_cart, bootstyle="success").pack(side="left", padx=10)
 
-    # ---------------- Remove from Cart ----------------
     def remove_selected_cart_item():
         selected = cart_tree.selection()
         if not selected:
@@ -128,51 +156,65 @@ def open_checkout_window(on_checkout_complete=None):
     tb.Button(window, text="🗑 Remove Selected Item", command=remove_selected_cart_item,
               bootstyle="danger outline").pack(pady=(5, 0))
 
-    # ---------------- Checkout Button ----------------
     def checkout():
         if not cart:
             messagebox.showerror("Empty Cart", "Add items to cart first.")
             return
 
-        total = sum(item["subtotal"] for item in cart)
-        date_str = datetime.datetime.now().strftime('%Y-%m-%d')
-        receipt_lines = ["Receipt - Pharmacy", f"Date: {datetime.datetime.now()}\n"]
+        total = round(sum(item["subtotal"] for item in cart), 2)
 
-        for item in cart:
-            receipt_lines.append(f"{item['name']} x{item['qty']} @ Rs.{item['price']} = Rs.{item['subtotal']}")
-            med = next((m for m in fetch_all_medicines() if m[0] == item['id']), None)
-            if med:
-                updated_qty = med[5] - item['qty']
-                update_medicine_by_id((med[1], med[2], med[3], med[4], updated_qty, med[6], med[7]), med[0])
+        # Prompt for cash input
+        cash_win = tb.Toplevel(window)
+        cash_win.title("Cash Received")
+        cash_win.geometry("300x140")
+        cash_win.grab_set()
 
-            # ✅ Save sale record to database
-            insert_sale_record((item['id'], item['name'], item['qty'], item['price'], item['subtotal'], date_str))
+        tb.Label(cash_win, text=f"Total Amount: Rs. {total:.2f}").pack(pady=(10, 5))
+        tb.Label(cash_win, text="Enter Cash Received:").pack()
+        cash_entry = tb.Entry(cash_win)
+        cash_entry.pack(pady=5)
 
-        receipt_lines.append(f"\nTotal Amount: Rs. {total}")
-        receipt_lines.append("\nThank you for your purchase!")
+        def confirm_cash():
+            try:
+                cash = float(cash_entry.get())
+                if cash < total:
+                    messagebox.showerror("Insufficient Cash", "Cash is less than total amount.")
+                    return
+                change = round(cash - total, 2)
 
-        file_path = os.path.expanduser(
-            f"~/Documents/PharmacyData/receipt_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        )
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "w") as f:
-            f.write("\n".join(receipt_lines))
+                invoice_id = str(uuid.uuid4())[:8]  # Short unique invoice
 
-        messagebox.showinfo("Checkout Successful", f"Receipt generated:\n{file_path}")
-        cart.clear()
-        selected_medicine = None
+                date_str = datetime.datetime.now().strftime('%Y-%m-%d')
+                items_summary = []
+                for item in cart:
+                    items_summary.append((item['name'], item['qty'], item['price']))
+                    med = next((m for m in fetch_all_medicines() if m[0] == item['id']), None)
+                    if med:
+                        updated_qty = med[5] - item['qty']
+                        update_medicine_by_id((med[1], med[2], med[3], med[4], updated_qty, med[6], med[7]), med[0])
+                    insert_sale_record((item['id'], item['name'], item['qty'], item['price'], item['subtotal'], date_str, invoice_id))
 
-        # ✅ Refresh result_box with current DB data
-        current_keyword = search_entry.get().lower()
-        result_box.delete(0, "end")
-        for row in fetch_all_medicines():
-            name = row[1].lower()
-            if current_keyword in name:
-                result_box.insert("end", f"{row[0]} | {row[1]} | Qty: {row[5]} | Price: {row[6]}")
+                receipt_text = generate_receipt_text(items_summary, total, cash, change, invoice_id)
+                file_path = os.path.expanduser(
+                    f"~/Documents/PharmacyData/receipt_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                )
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(receipt_text)
 
-        if on_checkout_complete:
-            on_checkout_complete()
+                messagebox.showinfo("Checkout Successful", f"Receipt saved to:\n{file_path}")
+                cart.clear()
+                cart_tree.delete(*cart_tree.get_children())
+                update_total()
+                if on_checkout_complete:
+                    on_checkout_complete()
 
-        window.destroy()
+                cash_win.destroy()
+                window.destroy()
+
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Please enter a valid number.")
+
+        tb.Button(cash_win, text="Confirm", command=confirm_cash, bootstyle="success").pack(pady=10)
 
     tb.Button(window, text="Checkout & Print Slip", bootstyle="primary", command=checkout).pack(pady=15)

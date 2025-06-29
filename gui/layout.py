@@ -3,7 +3,9 @@ from ttkbootstrap.constants import *
 from gui import events
 from gui.events import reset_filters
 from gui.checkout_gui import open_checkout_window
-from gui.sales_report_gui import open_sales_report_window  # ✅ Added
+from gui.sales_report_gui import open_sales_report_window
+from gui.return_gui import open_return_window  # ✅ Added
+from tkinter import ttk
 
 def create_tooltip(widget, text):
     def on_enter(event):
@@ -18,12 +20,10 @@ def build_gui():
     root.title("Pharmacy Inventory System")
     root.state('zoomed')
 
-    # Tooltip label at the bottom
     events.tooltip_var = tb.StringVar()
     tooltip_label = tb.Label(root, textvariable=events.tooltip_var, bootstyle="secondary")
     tooltip_label.pack(side="bottom", fill="x")
 
-    # Dashboard
     dashboard_frame = tb.Frame(root, padding=10)
     dashboard_frame.pack(fill="x", padx=15)
 
@@ -37,7 +37,6 @@ def build_gui():
 
     events.set_dashboard_labels(lbl_total, lbl_expired, lbl_near_expiry, lbl_low_stock)
 
-    # Form section
     form_frame = tb.Labelframe(root, text="Add / Edit Medicine", padding=20)
     form_frame.pack(fill="x", padx=15, pady=10)
 
@@ -49,7 +48,6 @@ def build_gui():
         entry.grid(row=i // 2, column=(i % 2) * 2 + 1, padx=8, pady=10)
         entries.append(entry)
 
-    # Buttons
     btn_frame = tb.Frame(form_frame)
     btn_frame.grid(row=4, column=0, columnspan=4, pady=15)
     btn_add = tb.Button(btn_frame, text="Add Medicine", bootstyle="success", width=16,
@@ -62,7 +60,6 @@ def build_gui():
     create_tooltip(btn_add, "Add a new medicine to inventory")
     create_tooltip(btn_update, "Update the selected medicine record")
 
-    # Search and filter toolbar
     toolbar = tb.Frame(root)
     toolbar.pack(fill="x", padx=15, pady=5)
 
@@ -95,11 +92,14 @@ def build_gui():
     tb.Button(root, text="💳 Checkout", bootstyle="primary outline", width=20,
               command=open_checkout_window).pack(pady=(0, 5))
 
-    # 📅 Sales Report Button (new)
+    # ↩️ Return Medicine Button
+    tb.Button(root, text="↩️ Return Medicine", bootstyle="warning outline", width=20,
+              command=open_return_window).pack(pady=(0, 5))
+
+    # 📅 Sales Report Button
     tb.Button(root, text="📅 View Sales Report", bootstyle="info outline", width=20,
               command=open_sales_report_window).pack(pady=(0, 10))
 
-    # Filter Buttons
     filter_frame = tb.Frame(toolbar)
     filter_frame.pack(side="right")
 
@@ -107,12 +107,20 @@ def build_gui():
     tb.Button(filter_frame, text="Only Expired", width=12, command=lambda: events.filter_status("❌"), bootstyle="danger").pack(side="left", padx=6)
     tb.Button(filter_frame, text="Near Expiry", width=12, command=lambda: events.filter_status("⚠️"), bootstyle="warning").pack(side="left", padx=6)
 
-    # Treeview Section
     tree_frame = tb.Frame(root)
     tree_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
     columns = ["Name", "Batch", "Mfg Date", "Expiry Date", "Quantity", "Price", "Demand", "Status"]
-    tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle="info")
+
+    tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle="info", selectmode="browse")
+    tree.grid(row=0, column=0, sticky="nsew")
+
+    scroll_y = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
+    scroll_y.grid(row=0, column=1, sticky="ns")
+    tree.configure(yscrollcommand=scroll_y.set)
+
+    tree_frame.grid_rowconfigure(0, weight=1)
+    tree_frame.grid_columnconfigure(0, weight=1)
 
     tree.tag_configure("expired", background="#ffcccc")
     tree.tag_configure("near_expiry", background="#fff4cc")
@@ -128,8 +136,6 @@ def build_gui():
         tree.heading(col, text=col, command=heading_click(col))
         tree.column(col, anchor="center", width=120)
 
-    tree.pack(fill="both", expand=True)
-
     def update_sort_indicators(active_col):
         for col in columns:
             text = col
@@ -140,8 +146,7 @@ def build_gui():
 
     update_sort_indicators(None)
 
-    # Control buttons
-    ctrl_btn_frame = tb.Frame(tree_frame)
+    ctrl_btn_frame = tb.Frame(root)
     ctrl_btn_frame.pack(pady=10)
 
     btn_delete = tb.Button(ctrl_btn_frame, text="Delete Selected", width=18, command=events.delete_selected, bootstyle="danger")
@@ -153,7 +158,6 @@ def build_gui():
     create_tooltip(btn_delete, "Delete selected medicine")
     create_tooltip(btn_export, "Export current data to CSV file")
 
-    # Tree selection logic
     btn_update.config(state="disabled")
     btn_delete.config(state="disabled")
 
