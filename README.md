@@ -66,9 +66,6 @@ Icon Creation	ICOConvert, PNG-to-ICO
 Development IDE	Visual Studio Code
 
 📁 Project Structure
-graphql
-Copy
-Edit
 pharmacy-inventory-app/
 ├── main.py                   # Entry point to launch the GUI
 ├── gui/
