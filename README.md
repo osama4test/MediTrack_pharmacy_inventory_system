@@ -65,21 +65,21 @@ Packaging	PyInstaller
 Icon Creation	ICOConvert, PNG-to-ICO
 Development IDE	Visual Studio Code
 
-📁 Project Structure
+## 📁 Project Structure
+
 pharmacy-inventory-app/
-├── main.py                   # Entry point to launch the GUI
+├── main.py # Entry point to launch the GUI
 ├── gui/
-│   ├── layout.py             # UI layout and definitions
-│   ├── checkout_gui.py       # Checkout window with Treeview-based cart
-│   └── return_gui.py         # Return medicine window
+│ ├── layout.py # UI layout and definitions
+│ ├── checkout_gui.py # Checkout window with Treeview-based cart
+│ └── return_gui.py # Return medicine window
 ├── database/
-│   └── db_handler.py         # All SQLite database operations
+│ └── db_handler.py # All SQLite database operations
 ├── utils/
-│   └── expiry_checker.py     # Logic to detect expired/near-expiry medicines
+│ └── expiry_checker.py # Logic to detect expired/near-expiry medicines
 ├── assets/
-│   └── medi_icon.ico         # Icon used for application executable
+│ └── medi_icon.ico # Icon used for application executable
 ├── dist/
-│   └── MediTrack.exe         # Generated executable using PyInstaller
+│ └── MediTrack.exe # Generated executable using PyInstaller
 ├── backups/
-│   └── pharmacy_YYYYMMDD.db  # Daily auto-created backup (one per day)
-└── README.md                 # You're here!
+│ └── pharmacy_YYYYMMDD.db # Daily auto-created backup (one per day)
