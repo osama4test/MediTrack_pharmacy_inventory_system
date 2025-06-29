@@ -4,7 +4,7 @@ from tkinter import messagebox, ttk
 import datetime
 
 from database.db_handler import (
-    fetch_sales_by_date_range,
+    fetch_sales_with_remaining_qty,
     fetch_sales_by_invoice,
     fetch_all_medicines,
     update_medicine_by_id,
@@ -79,10 +79,23 @@ def open_return_window(on_return_complete=None):
             messagebox.showerror("Invalid Date", "Enter date in YYYY-MM-DD format.")
             return
 
-        rows = fetch_sales_by_date_range(date_str, date_str)
+        rows = fetch_sales_with_remaining_qty(date_str, date_str)
         sales_tree.delete(*sales_tree.get_children())
+
         for row in rows:
-            sales_tree.insert('', 'end', values=(row[1], row[2], row[3], row[4], row[5], row[7]))
+            try:
+                med_id, name = row[0], row[1]
+                qty_sold = int(row[2])
+                qty_returned = int(row[3])
+                price = float(row[4])
+                invoice_id = row[5]
+
+                net_qty = qty_sold - qty_returned
+                if net_qty > 0:
+                    subtotal = round(price * net_qty, 2)
+                    sales_tree.insert('', 'end', values=(med_id, name, net_qty, price, subtotal, invoice_id))
+            except Exception as e:
+                print(f"Skipping row due to error: {e}")
 
     def load_sales_by_invoice_id():
         invoice_id = invoice_entry.get().strip()
@@ -97,7 +110,19 @@ def open_return_window(on_return_complete=None):
             return
 
         for row in rows:
-            sales_tree.insert('', 'end', values=(row[1], row[2], row[3], row[4], row[5], row[7]))
+            try:
+                med_id, name = row[1], row[2]
+                qty = int(row[3])
+                price = float(row[4])
+                invoice_id = row[7]
+                previous_returns = fetch_returns_by_invoice(invoice_id)
+                total_returned = sum(r[3] for r in previous_returns if r[1] == med_id and r[7] == invoice_id)
+                net_qty = qty - total_returned
+                if net_qty > 0:
+                    new_subtotal = round(price * net_qty, 2)
+                    sales_tree.insert('', 'end', values=(med_id, name, net_qty, price, new_subtotal, invoice_id))
+            except Exception as e:
+                print(f"Skipping row due to error: {e}")
 
     def return_selected():
         selected = sales_tree.selection()
@@ -118,10 +143,7 @@ def open_return_window(on_return_complete=None):
             sold_qty = int(sold_qty)
             price = float(price)
 
-            # Fetch previous returns for this invoice only
-            previous_returns = fetch_returns_by_invoice(invoice_id)
-            total_returned = sum(r[3] for r in previous_returns if r[1] == med_id and r[7] == invoice_id)
-            remaining_returnable = sold_qty - total_returned
+            remaining_returnable = sold_qty  # FIX: already net qty in the tree
 
             if remaining_returnable <= 0:
                 messagebox.showwarning(
@@ -133,23 +155,20 @@ def open_return_window(on_return_complete=None):
             if return_qty > remaining_returnable:
                 messagebox.showerror(
                     "Return Quantity Too High",
-                    f"Only {remaining_returnable} out of {sold_qty} can be returned for '{name}'."
+                    f"Only {remaining_returnable} can be returned for '{name}'."
                 )
                 continue
 
-            # Fetch medicine
             medicines = fetch_all_medicines()
             med = next((m for m in medicines if m[0] == med_id), None)
             if not med:
                 messagebox.showerror("Medicine Not Found", f"Medicine ID {med_id} not found in inventory.")
                 continue
 
-            # Update medicine stock
             updated_qty = med[5] + return_qty
             updated_data = (med[1], med[2], med[3], med[4], updated_qty, med[6], med[7])
             update_medicine_by_id(updated_data, med_id)
 
-            # Record return
             refund_amount = price * return_qty
             return_entry = (
                 med_id, name, return_qty, price, refund_amount,
@@ -157,13 +176,11 @@ def open_return_window(on_return_complete=None):
             )
             insert_return_record(return_entry)
 
-            # Notify
             messagebox.showinfo(
                 "Refunded",
                 f"Medicine '{name}' returned: {return_qty} units\nRefund: Rs. {refund_amount:.2f}"
             )
 
-            # ✅ Update or remove from UI
             new_remaining = remaining_returnable - return_qty
             if new_remaining <= 0:
                 sales_tree.delete(item_id)

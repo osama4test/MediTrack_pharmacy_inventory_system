@@ -11,7 +11,6 @@ def create_table():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Medicines Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS medicines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,13 +23,12 @@ def create_table():
         )
     ''')
 
-    # Add 'demand' column if not exists
+    # Add demand column if missing
     cursor.execute("PRAGMA table_info(medicines)")
     medicine_columns = [col[1] for col in cursor.fetchall()]
     if "demand" not in medicine_columns:
         cursor.execute("ALTER TABLE medicines ADD COLUMN demand TEXT")
 
-    # Sales Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +47,6 @@ def create_table():
     if "invoice_id" not in sales_columns:
         cursor.execute("ALTER TABLE sales ADD COLUMN invoice_id TEXT")
 
-    # Returns Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS returns (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,9 +146,6 @@ def update_medicine(data, old_name, old_batch):
 # ---------------- Sales Table Operations ---------------- #
 
 def insert_sale_record(sale):
-    """
-    sale = (medicine_id, name, quantity, price, subtotal, date, invoice_id)
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -188,9 +182,6 @@ def fetch_sales_by_invoice(invoice_id):
 # ---------------- Return Table Operations ---------------- #
 
 def insert_return_record(return_entry):
-    """
-    return_entry = (medicine_id, name, quantity, price, refund_amount, date, invoice_id)
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -201,9 +192,6 @@ def insert_return_record(return_entry):
     conn.close()
 
 def fetch_returns_by_invoice(invoice_id):
-    """
-    Returns all return records for a given invoice ID.
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM returns WHERE invoice_id = ?", (invoice_id,))
@@ -212,9 +200,6 @@ def fetch_returns_by_invoice(invoice_id):
     return rows
 
 def fetch_total_returned_by_invoice_and_medicine(invoice_id, medicine_id):
-    """
-    Returns the total returned quantity for a specific medicine ID within an invoice.
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -224,3 +209,90 @@ def fetch_total_returned_by_invoice_and_medicine(invoice_id, medicine_id):
     result = cursor.fetchone()
     conn.close()
     return result[0] if result and result[0] is not None else 0
+
+# ---------------- Sales Report with Returns ---------------- #
+
+def fetch_sales_report_with_returns(start_date, end_date):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT
+            s.invoice_id,
+            s.medicine_id,
+            s.name,
+            s.quantity AS qty_sold,
+            COALESCE(SUM(r.quantity), 0) AS qty_returned,
+            s.price,
+            s.subtotal,
+            s.date
+        FROM sales s
+        LEFT JOIN returns r ON s.medicine_id = r.medicine_id AND s.invoice_id = r.invoice_id
+        WHERE s.date BETWEEN ? AND ?
+        GROUP BY s.id
+        ORDER BY s.date DESC
+    ''', (start_date, end_date))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    report_data = []
+    for row in rows:
+        invoice_id, med_id, name, qty_sold, qty_returned, price, subtotal, date = row
+        net_qty = qty_sold - qty_returned
+        net_total = net_qty * price
+        returned_total = qty_returned * price
+
+        report_data.append({
+            "invoice_id": invoice_id,
+            "medicine_id": med_id,
+            "name": name,
+            "qty_sold": qty_sold,
+            "qty_returned": qty_returned,
+            "net_qty": net_qty,
+            "price": price,
+            "subtotal": subtotal,
+            "returned_amount": returned_total,
+            "net_total": net_total,
+            "date": date
+        })
+
+    return report_data
+
+# ---------------- Sales with Remaining Qty ---------------- #
+
+def fetch_sales_with_remaining_qty(start_date, end_date=None, invoice_id=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    base_query = '''
+        SELECT 
+            s.medicine_id,
+            s.name,
+            s.quantity AS qty_sold,
+            COALESCE(SUM(r.quantity), 0) AS qty_returned,
+            s.price,
+            s.invoice_id
+        FROM sales s
+        LEFT JOIN returns r ON s.invoice_id = r.invoice_id AND s.medicine_id = r.medicine_id
+    '''
+
+    filters = []
+    params = []
+
+    if invoice_id:
+        filters.append("s.invoice_id = ?")
+        params.append(invoice_id)
+    elif start_date:
+        filters.append("s.date BETWEEN ? AND ?")
+        params += [start_date, end_date or start_date]
+
+    if filters:
+        base_query += " WHERE " + " AND ".join(filters)
+
+    base_query += " GROUP BY s.id HAVING qty_sold > qty_returned ORDER BY s.date DESC"
+
+    cursor.execute(base_query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

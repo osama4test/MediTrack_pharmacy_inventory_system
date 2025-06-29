@@ -2,7 +2,7 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from database.db_handler import fetch_sales_by_date_range, fetch_returns_by_invoice
+from database.db_handler import fetch_sales_report_with_returns
 import datetime
 import csv
 
@@ -17,7 +17,7 @@ def open_sales_report_window():
 
     report_win = tb.Toplevel()
     report_win.title("📈 Sales Report by Date Range")
-    report_win.geometry("880x600")
+    report_win.geometry("1000x600")
     report_window_ref = report_win
 
     def on_close():
@@ -42,17 +42,17 @@ def open_sales_report_window():
     to_date_entry.insert(0, datetime.datetime.now().strftime('%Y-%m-%d'))
     to_date_entry.pack(side="left")
 
-    # Table with invoice ID
-    columns = ("invoice_id", "name", "qty", "price", "subtotal", "returned")
+    # Table columns
+    columns = ("invoice_id", "name", "qty_sold", "qty_returned", "net_qty", "price", "subtotal", "returned_amount", "net_total", "date")
     tree = ttk.Treeview(report_win, columns=columns, show="headings", height=15)
 
     for col in columns:
         tree.heading(col, text=col.replace("_", " ").capitalize())
-        tree.column(col, anchor="center", width=130)
+        tree.column(col, anchor="center", width=110)
 
     tree.pack(pady=10, fill="both", expand=True)
 
-    # Total labels
+    # Totals display
     totals_frame = tb.Frame(report_win)
     totals_frame.pack(anchor="e", padx=20, pady=(5, 0))
 
@@ -65,7 +65,7 @@ def open_sales_report_window():
     net_label = tb.Label(totals_frame, text="Net Revenue: Rs. 0.00", font=("Segoe UI", 12, "bold"), foreground="green")
     net_label.pack(anchor="e")
 
-    # Load report function
+    # Load Report
     def load_report():
         from_date = from_date_entry.get().strip()
         to_date = to_date_entry.get().strip()
@@ -77,41 +77,36 @@ def open_sales_report_window():
             messagebox.showerror("Invalid Date", "Please enter dates in YYYY-MM-DD format.")
             return
 
-        rows = fetch_sales_by_date_range(from_date, to_date)
+        data = fetch_sales_report_with_returns(from_date, to_date)
         tree.delete(*tree.get_children())
 
         total_sales = 0
         total_returns = 0
 
-        for row in rows:
-            # row = (id, medicine_id, name, quantity, price, subtotal, date, invoice_id)
-            invoice_id = row[7]
-            name = row[2]
-            qty = row[3]
-            price = row[4]
-            subtotal = row[5]
+        for row in data:
+            tree.insert('', 'end', values=(
+                row["invoice_id"],
+                row["name"],
+                row["qty_sold"],
+                row["qty_returned"],
+                row["net_qty"],
+                f"{row['price']:.2f}",
+                f"{row['subtotal']:.2f}",
+                f"{row['returned_amount']:.2f}",
+                f"{row['net_total']:.2f}",
+                row["date"]
+            ))
 
-            # Fetch total returns for this medicine and invoice
-            returned_qty = 0
-            returned_amount = 0
-            returns = fetch_returns_by_invoice(invoice_id)
-            for r in returns:
-                if r[1] == row[1]:  # r[1] = medicine_id
-                    returned_qty += r[3]
-                    returned_amount += r[5]
+            total_sales += row["subtotal"]
+            total_returns += row["returned_amount"]
 
-            total_sales += subtotal
-            total_returns += returned_amount
-
-            tree.insert('', 'end', values=(invoice_id, name, qty, price, subtotal, f"{returned_amount:.2f}"))
-
-        net = total_sales - total_returns
+        net_revenue = total_sales - total_returns
 
         total_label.config(text=f"Total Sales: Rs. {total_sales:.2f}")
         returned_label.config(text=f"Total Returned: Rs. {total_returns:.2f}")
-        net_label.config(text=f"Net Revenue: Rs. {net:.2f}")
+        net_label.config(text=f"Net Revenue: Rs. {net_revenue:.2f}")
 
-    # Export to CSV function
+    # Export to CSV
     def export_to_csv():
         if not tree.get_children():
             messagebox.showwarning("No Data", "Please load the report first before exporting.")
@@ -133,7 +128,7 @@ def open_sales_report_window():
 
         messagebox.showinfo("Exported", f"Report exported successfully to:\n{file_path}")
 
-    # Buttons frame
+    # Buttons
     btn_frame = tb.Frame(report_win)
     btn_frame.pack(pady=10)
 
