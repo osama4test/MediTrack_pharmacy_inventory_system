@@ -99,10 +99,6 @@ pharmacy-inventory-app/
 │ └── pharmacy_YYYYMMDD.db # Daily auto-created backup (one per day)
 └── README.md # You're here!
 
-yaml
-Copy
-Edit
-
 ---
 
 ✅ Designed for ease of use  
