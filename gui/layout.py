@@ -1,29 +1,35 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
+from tkinter import ttk
 from gui import events
 from gui.events import reset_filters
 from gui.checkout_gui import open_checkout_window
 from gui.sales_report_gui import open_sales_report_window
-from gui.return_gui import open_return_window  # ✅ Added
-from tkinter import ttk
+from gui.return_gui import open_return_window
+
 
 def create_tooltip(widget, text):
     def on_enter(event):
         events.tooltip_var.set(text)
+
     def on_leave(event):
         events.tooltip_var.set("")
+
     widget.bind("<Enter>", on_enter)
     widget.bind("<Leave>", on_leave)
+
 
 def build_gui():
     root = tb.Window(themename="flatly")
     root.title("Pharmacy Inventory System")
     root.state('zoomed')
 
+    # Tooltip area
     events.tooltip_var = tb.StringVar()
     tooltip_label = tb.Label(root, textvariable=events.tooltip_var, bootstyle="secondary")
     tooltip_label.pack(side="bottom", fill="x")
 
+    # Dashboard Stats
     dashboard_frame = tb.Frame(root, padding=10)
     dashboard_frame.pack(fill="x", padx=15)
 
@@ -37,29 +43,35 @@ def build_gui():
 
     events.set_dashboard_labels(lbl_total, lbl_expired, lbl_near_expiry, lbl_low_stock)
 
+    # Medicine Form
     form_frame = tb.Labelframe(root, text="Add / Edit Medicine", padding=20)
     form_frame.pack(fill="x", padx=15, pady=10)
 
     labels = ["Name*", "Batch No", "Mfg Date (YYYY-MM-DD)", "Expiry Date*", "Quantity*", "Price", "Demand"]
     entries = []
+
     for i, label in enumerate(labels):
         tb.Label(form_frame, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="e", padx=8, pady=10)
         entry = tb.Entry(form_frame, width=30, bootstyle="light")
         entry.grid(row=i // 2, column=(i % 2) * 2 + 1, padx=8, pady=10)
         entries.append(entry)
 
+    # Add / Update Buttons
     btn_frame = tb.Frame(form_frame)
     btn_frame.grid(row=4, column=0, columnspan=4, pady=15)
+
     btn_add = tb.Button(btn_frame, text="Add Medicine", bootstyle="success", width=16,
                         command=lambda: events.add_medicine(entries))
     btn_update = tb.Button(btn_frame, text="Update Selected", bootstyle="info", width=16,
                            command=lambda: events.edit_selected(entries))
+
     btn_add.pack(side="left", padx=15)
     btn_update.pack(side="left", padx=15)
 
     create_tooltip(btn_add, "Add a new medicine to inventory")
     create_tooltip(btn_update, "Update the selected medicine record")
 
+    # Search Bar & Filters
     toolbar = tb.Frame(root)
     toolbar.pack(fill="x", padx=15, pady=5)
 
@@ -88,18 +100,17 @@ def build_gui():
               command=lambda: [search_entry.delete(0, 'end'), events.load_data(show_popup=False)],
               bootstyle="secondary").pack(side="left")
 
-    # 💳 Checkout Button
+    # Main Navigation Buttons
     tb.Button(root, text="💳 Checkout", bootstyle="primary outline", width=20,
-              command=open_checkout_window).pack(pady=(0, 5))
+          command=lambda: open_checkout_window(on_checkout_complete=events.load_data)).pack(pady=(0, 5))
 
-    # ↩️ Return Medicine Button
     tb.Button(root, text="↩️ Return Medicine", bootstyle="warning outline", width=20,
-              command=open_return_window).pack(pady=(0, 5))
+          command=lambda: open_return_window(on_return_complete=events.load_data)).pack(pady=(0, 5))
 
-    # 📅 Sales Report Button
     tb.Button(root, text="📅 View Sales Report", bootstyle="info outline", width=20,
               command=open_sales_report_window).pack(pady=(0, 10))
 
+    # Filter Buttons
     filter_frame = tb.Frame(toolbar)
     filter_frame.pack(side="right")
 
@@ -107,6 +118,7 @@ def build_gui():
     tb.Button(filter_frame, text="Only Expired", width=12, command=lambda: events.filter_status("❌"), bootstyle="danger").pack(side="left", padx=6)
     tb.Button(filter_frame, text="Near Expiry", width=12, command=lambda: events.filter_status("⚠️"), bootstyle="warning").pack(side="left", padx=6)
 
+    # Table Section
     tree_frame = tb.Frame(root)
     tree_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
@@ -132,10 +144,6 @@ def build_gui():
             update_sort_indicators(col)
         return handler
 
-    for col in columns:
-        tree.heading(col, text=col, command=heading_click(col))
-        tree.column(col, anchor="center", width=120)
-
     def update_sort_indicators(active_col):
         for col in columns:
             text = col
@@ -144,8 +152,13 @@ def build_gui():
                 text += arrow
             tree.heading(col, text=text, command=heading_click(col))
 
+    for col in columns:
+        tree.heading(col, text=col, command=heading_click(col))
+        tree.column(col, anchor="center", width=120)
+
     update_sort_indicators(None)
 
+    # Control Buttons
     ctrl_btn_frame = tb.Frame(root)
     ctrl_btn_frame.pack(pady=10)
 
@@ -161,6 +174,7 @@ def build_gui():
     btn_update.config(state="disabled")
     btn_delete.config(state="disabled")
 
+    # Treeview Selection Event
     def on_tree_select(event):
         selected = tree.selection()
         if selected:
@@ -181,6 +195,7 @@ def build_gui():
     events.set_tree(tree)
     events.set_entries(entries)
 
+    # Initial Load
     def load_data_and_set_focus():
         events.load_data()
 

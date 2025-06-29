@@ -11,7 +11,7 @@ def create_table():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Create medicines table if it doesn't exist
+    # Medicines Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS medicines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,13 +24,13 @@ def create_table():
         )
     ''')
 
-    # Add 'demand' column if not present
+    # Add 'demand' column if not exists
     cursor.execute("PRAGMA table_info(medicines)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "demand" not in columns:
+    medicine_columns = [col[1] for col in cursor.fetchall()]
+    if "demand" not in medicine_columns:
         cursor.execute("ALTER TABLE medicines ADD COLUMN demand TEXT")
 
-    # Create sales table if it doesn't exist
+    # Sales Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,17 +39,17 @@ def create_table():
             quantity INTEGER,
             price REAL,
             subtotal REAL,
-            date TEXT
+            date TEXT,
+            invoice_id TEXT
         )
     ''')
 
-    # Add 'invoice_id' column if not present
     cursor.execute("PRAGMA table_info(sales)")
     sales_columns = [col[1] for col in cursor.fetchall()]
     if "invoice_id" not in sales_columns:
         cursor.execute("ALTER TABLE sales ADD COLUMN invoice_id TEXT")
 
-    # Create returns table if it doesn't exist
+    # Returns Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS returns (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,9 +58,15 @@ def create_table():
             quantity INTEGER,
             price REAL,
             refund_amount REAL,
-            date TEXT
+            date TEXT,
+            invoice_id TEXT
         )
     ''')
+
+    cursor.execute("PRAGMA table_info(returns)")
+    return_columns = [col[1] for col in cursor.fetchall()]
+    if "invoice_id" not in return_columns:
+        cursor.execute("ALTER TABLE returns ADD COLUMN invoice_id TEXT")
 
     conn.commit()
     conn.close()
@@ -109,7 +115,7 @@ def update_medicine_by_id(data, med_id):
 def search_medicine(query):
     conn = get_connection()
     cursor = conn.cursor()
-    wildcard = f"%{query}%"
+    wildcard = f"%{query.lower()}%"
     cursor.execute('''
         SELECT * FROM medicines
         WHERE LOWER(name) LIKE ? OR LOWER(batch_no) LIKE ?
@@ -183,13 +189,38 @@ def fetch_sales_by_invoice(invoice_id):
 
 def insert_return_record(return_entry):
     """
-    return_entry = (medicine_id, name, quantity, price, refund_amount, date)
+    return_entry = (medicine_id, name, quantity, price, refund_amount, date, invoice_id)
     """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO returns (medicine_id, name, quantity, price, refund_amount, date)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO returns (medicine_id, name, quantity, price, refund_amount, date, invoice_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', return_entry)
     conn.commit()
     conn.close()
+
+def fetch_returns_by_invoice(invoice_id):
+    """
+    Returns all return records for a given invoice ID.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM returns WHERE invoice_id = ?", (invoice_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def fetch_total_returned_by_invoice_and_medicine(invoice_id, medicine_id):
+    """
+    Returns the total returned quantity for a specific medicine ID within an invoice.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT SUM(quantity) FROM returns
+        WHERE invoice_id = ? AND medicine_id = ?
+    ''', (invoice_id, medicine_id))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result and result[0] is not None else 0

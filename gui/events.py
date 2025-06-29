@@ -38,20 +38,24 @@ current_filters = {
 
 tooltip_var = None
 
+
 def set_dashboard_labels(lbl_total, lbl_expired, lbl_near_expiry, lbl_low_stock):
     dashboards_labels['total'] = lbl_total
     dashboards_labels['expired'] = lbl_expired
     dashboards_labels['near_expiry'] = lbl_near_expiry
     dashboards_labels['low_stock'] = lbl_low_stock
 
+
 def set_tree(tree):
     global tree_widget
     tree_widget = tree
     threading.Thread(target=auto_refresh, daemon=True).start()
 
+
 def set_entries(entries):
     global form_entries
     form_entries = entries
+
 
 def set_sorting(column):
     global sort_column, sort_reverse
@@ -61,6 +65,7 @@ def set_sorting(column):
         sort_column = column
         sort_reverse = False
     load_data(show_popup=False)
+
 
 def set_filters(min_q=None, max_q=None, min_p=None, max_p=None, status=None):
     global current_filters
@@ -72,6 +77,19 @@ def set_filters(min_q=None, max_q=None, min_p=None, max_p=None, status=None):
         'status': status
     })
     load_data(show_popup=False)
+
+
+def reset_filters():
+    global current_filters
+    current_filters = {
+        'min_quantity': None,
+        'max_quantity': None,
+        'min_price': None,
+        'max_price': None,
+        'status': None,
+    }
+    load_data(show_popup=False)
+
 
 def apply_filters(rows):
     filtered = []
@@ -93,6 +111,7 @@ def apply_filters(rows):
 
         filtered.append(row)
     return filtered
+
 
 def apply_sort(rows):
     if not sort_column:
@@ -124,11 +143,11 @@ def apply_sort(rows):
 
     return sorted(rows, key=sort_key, reverse=sort_reverse)
 
+
 def add_medicine(entries):
     values = []
     for i, entry in enumerate(entries):
         val = entry.get().strip()
-        # Ensure numeric fields are converted properly
         if i == 4:  # Quantity
             try:
                 val = int(val)
@@ -141,7 +160,6 @@ def add_medicine(entries):
             except ValueError:
                 messagebox.showerror("Invalid Input", "Price must be a number.")
                 return
-        # No conversion for Demand (index 6), it stays as string
         values.append(val)
 
     if not values[0] or not values[3] or not str(values[4]).isdigit():
@@ -151,6 +169,89 @@ def add_medicine(entries):
     insert_medicine(values)
     messagebox.showinfo("Success", "Medicine added successfully.")
     load_data()
+
+
+def edit_selected(entries):
+    selected = tree_widget.selection()
+    if not selected:
+        messagebox.showwarning("No selection", "Please select a row to update.")
+        return
+
+    values = [e.get().strip() for e in entries]
+    if not values[0] or not values[3] or not values[4]:
+        messagebox.showwarning("Input Error", "Please fill required fields (Name, Expiry Date, Quantity).")
+        return
+
+    try:
+        values[4] = int(values[4])
+        values[5] = float(values[5]) if values[5] else 0.0
+        values[6] = int(values[6]) if values[6] else 0
+    except ValueError:
+        messagebox.showerror("Input Error", "Invalid quantity, price or demand.")
+        return
+
+    med_id = selected[0]
+    if update_medicine_by_id(values, med_id):
+        messagebox.showinfo("Updated", f"Medicine ID {med_id} has been updated.")
+        for e in entries:
+            e.delete(0, 'end')
+        entries[0].focus_set()
+        load_data(show_popup=False)
+    else:
+        messagebox.showerror("Error", "Update failed. Record not found.")
+
+
+def delete_selected():
+    selected = tree_widget.selection()
+    if not selected:
+        messagebox.showwarning("No selection", "Please select a record to delete.")
+        return
+
+    med_id = selected[0]
+    values = tree_widget.item(med_id, 'values')
+    name, batch = values[0], values[1]
+
+    if messagebox.askyesno("Confirm Delete", f"Delete {name} (Batch {batch})?"):
+        if delete_medicine_by_id(med_id):
+            messagebox.showinfo("Deleted", f"{name} (Batch {batch}) has been deleted.")
+            load_data(show_popup=False)
+        else:
+            messagebox.showerror("Error", "Medicine not found or could not be deleted.")
+
+
+def search_medicines(query):
+    query = query.strip().lower()
+    if not query:
+        load_data(show_popup=False)
+        return
+
+    results = search_medicine(query)
+    tree_widget.delete(*tree_widget.get_children())
+
+    if not results:
+        messagebox.showinfo("Search", "No matching medicines found.")
+        return
+
+    for row in results:
+        med_id = row[0]
+        status_icon, days_info = check_expiry(row[4])
+        status = f"{status_icon} ({days_info})"
+        tags = []
+
+        if row[5] < LOW_STOCK_THRESHOLD:
+            status += " 🔔 Low Stock"
+            tags.append("low_stock")
+        if "❌" in status_icon:
+            tags.append("expired")
+        elif "⚠️" in status_icon:
+            tags.append("near_expiry")
+
+        tree_widget.insert('', 'end', iid=str(med_id), values=row[1:] + (status,), tags=tags)
+
+
+def filter_status(status_filter):
+    set_filters(status=status_filter)
+
 
 def load_data(show_popup=True):
     expired, near_expiry, low_stock = [], [], []
@@ -198,84 +299,9 @@ def load_data(show_popup=True):
             msg += f"🔔 Low Stock Medicines (<{LOW_STOCK_THRESHOLD}): {len(low_stock)}\n"
         messagebox.showwarning("Inventory Alert", msg.strip())
 
-        if form_entries:
-            form_entries[0].focus_set()
+    if form_entries:
+        form_entries[0].focus_set()
 
-def delete_selected():
-    selected = tree_widget.selection()
-    if not selected:
-        messagebox.showwarning("No selection", "Please select a record to delete.")
-        return
-
-    med_id = selected[0]
-    values = tree_widget.item(med_id, 'values')
-    name, batch = values[0], values[1]
-
-    if messagebox.askyesno("Confirm Delete", f"Delete {name} (Batch {batch})?"):
-        if delete_medicine_by_id(med_id):
-            messagebox.showinfo("Deleted", f"{name} (Batch {batch}) has been deleted.")
-            load_data(show_popup=False)
-        else:
-            messagebox.showerror("Error", "Medicine not found or could not be deleted.")
-
-def search_medicines(query):
-    query = query.strip().lower()
-    if not query:
-        load_data(show_popup=False)
-        return
-
-    results = search_medicine(query)
-    tree_widget.delete(*tree_widget.get_children())
-
-    if not results:
-        messagebox.showinfo("Search", "No matching medicines found.")
-        return
-
-    for row in results:
-        med_id = row[0]
-        status_icon, days_info = check_expiry(row[4])
-        status = f"{status_icon} ({days_info})"
-        tags = []
-
-        if row[5] < LOW_STOCK_THRESHOLD:
-            status += " 🔔 Low Stock"
-            tags.append("low_stock")
-        if "❌" in status_icon:
-            tags.append("expired")
-        elif "⚠️" in status_icon:
-            tags.append("near_expiry")
-
-        tree_widget.insert('', 'end', iid=str(med_id), values=row[1:] + (status,), tags=tags)
-
-def filter_status(status_filter):
-    set_filters(status=status_filter)
-
-def edit_selected(entries):
-    selected = tree_widget.selection()
-    if not selected:
-        messagebox.showwarning("No selection", "Please select a row to update.")
-        return
-    values = [e.get().strip() for e in entries]
-    if not values[0] or not values[3] or not values[4]:
-        messagebox.showwarning("Input Error", "Please fill required fields (Name, Expiry Date, Quantity).")
-        return
-    try:
-        values[4] = int(values[4])
-        values[5] = float(values[5]) if values[5] else 0.0
-        values[6] = int(values[6]) if values[6] else 0
-    except ValueError:
-        messagebox.showerror("Input Error", "Invalid quantity, price or demand.")
-        return
-
-    med_id = selected[0]
-    if update_medicine_by_id(values, med_id):
-        messagebox.showinfo("Updated", f"Medicine ID {med_id} has been updated.")
-        for e in entries:
-            e.delete(0, 'end')
-        entries[0].focus_set()
-        load_data(show_popup=False)
-    else:
-        messagebox.showerror("Error", "Update failed. Record not found.")
 
 def export_to_csv():
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
@@ -297,18 +323,8 @@ def export_to_csv():
     except Exception as e:
         messagebox.showerror("Export Error", str(e))
 
+
 def auto_refresh():
     while True:
         time.sleep(REFRESH_INTERVAL)
         load_data(show_popup=False)
-
-def reset_filters():
-    global current_filters
-    current_filters = {
-        'min_quantity': None,
-        'max_quantity': None,
-        'min_price': None,
-        'max_price': None,
-        'status': None,
-    }
-    load_data(show_popup=False)

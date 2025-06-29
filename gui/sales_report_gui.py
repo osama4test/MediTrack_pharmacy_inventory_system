@@ -2,14 +2,31 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from database.db_handler import fetch_sales_by_date_range
+from database.db_handler import fetch_sales_by_date_range, fetch_returns_by_invoice
 import datetime
 import csv
 
+# Reference to track if the report window is already open
+report_window_ref = None
+
 def open_sales_report_window():
+    global report_window_ref
+    if report_window_ref and report_window_ref.winfo_exists():
+        messagebox.showinfo("Window Already Open", "Sales report window is already open.")
+        return
+
     report_win = tb.Toplevel()
     report_win.title("📈 Sales Report by Date Range")
-    report_win.geometry("800x570")
+    report_win.geometry("880x600")
+    report_window_ref = report_win
+
+    def on_close():
+        global report_window_ref
+        if report_window_ref:
+            report_window_ref.destroy()
+            report_window_ref = None
+
+    report_win.protocol("WM_DELETE_WINDOW", on_close)
 
     # Date range input
     input_frame = tb.Frame(report_win)
@@ -26,7 +43,7 @@ def open_sales_report_window():
     to_date_entry.pack(side="left")
 
     # Table with invoice ID
-    columns = ("invoice_id", "name", "qty", "price", "subtotal")
+    columns = ("invoice_id", "name", "qty", "price", "subtotal", "returned")
     tree = ttk.Treeview(report_win, columns=columns, show="headings", height=15)
 
     for col in columns:
@@ -35,9 +52,18 @@ def open_sales_report_window():
 
     tree.pack(pady=10, fill="both", expand=True)
 
-    # Total label
-    total_label = tb.Label(report_win, text="Total: Rs. 0", font=("Segoe UI", 11, "bold"))
-    total_label.pack(anchor="e", padx=20)
+    # Total labels
+    totals_frame = tb.Frame(report_win)
+    totals_frame.pack(anchor="e", padx=20, pady=(5, 0))
+
+    total_label = tb.Label(totals_frame, text="Total Sales: Rs. 0.00", font=("Segoe UI", 11, "bold"))
+    total_label.pack(anchor="e")
+
+    returned_label = tb.Label(totals_frame, text="Total Returned: Rs. 0.00", font=("Segoe UI", 11, "bold"), foreground="red")
+    returned_label.pack(anchor="e")
+
+    net_label = tb.Label(totals_frame, text="Net Revenue: Rs. 0.00", font=("Segoe UI", 12, "bold"), foreground="green")
+    net_label.pack(anchor="e")
 
     # Load report function
     def load_report():
@@ -54,18 +80,36 @@ def open_sales_report_window():
         rows = fetch_sales_by_date_range(from_date, to_date)
         tree.delete(*tree.get_children())
 
-        total = 0
+        total_sales = 0
+        total_returns = 0
+
         for row in rows:
             # row = (id, medicine_id, name, quantity, price, subtotal, date, invoice_id)
+            invoice_id = row[7]
             name = row[2]
             qty = row[3]
             price = row[4]
             subtotal = row[5]
-            invoice_id = row[7]
-            tree.insert('', 'end', values=(invoice_id, name, qty, price, subtotal))
-            total += subtotal
 
-        total_label.config(text=f"Total: Rs. {total:.2f}")
+            # Fetch total returns for this medicine and invoice
+            returned_qty = 0
+            returned_amount = 0
+            returns = fetch_returns_by_invoice(invoice_id)
+            for r in returns:
+                if r[1] == row[1]:  # r[1] = medicine_id
+                    returned_qty += r[3]
+                    returned_amount += r[5]
+
+            total_sales += subtotal
+            total_returns += returned_amount
+
+            tree.insert('', 'end', values=(invoice_id, name, qty, price, subtotal, f"{returned_amount:.2f}"))
+
+        net = total_sales - total_returns
+
+        total_label.config(text=f"Total Sales: Rs. {total_sales:.2f}")
+        returned_label.config(text=f"Total Returned: Rs. {total_returns:.2f}")
+        net_label.config(text=f"Net Revenue: Rs. {net:.2f}")
 
     # Export to CSV function
     def export_to_csv():

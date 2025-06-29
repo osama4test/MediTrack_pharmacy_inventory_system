@@ -4,18 +4,18 @@ from tkinter import messagebox, Listbox
 from tkinter import ttk
 import datetime
 import os
-import uuid
 
 from database.db_handler import fetch_all_medicines, update_medicine_by_id, insert_sale_record
 
 cart = []
 selected_medicine = None
+checkout_window_ref = None  # ✅ Global tracker
 
 def generate_receipt_text(items, total, cash, change, invoice_id):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = []
     lines.append("        PHARMACY RECEIPT")
-    lines.append("     Address: Your Shop Address")
+    lines.append("     Address: Shop No. 9, Shangrila Tower, Block 13, Gulistan-e-Johar Karachi, Pakistan")
     lines.append("*" * 40)
     lines.append("             CASH RECEIPT")
     lines.append("*" * 40)
@@ -36,22 +36,34 @@ def generate_receipt_text(items, total, cash, change, invoice_id):
     lines.append("*" * 40)
     lines.append("        THANK YOU FOR VISITING!")
     lines.append("*" * 40)
-    lines.append("|| ||| || || ||||| || | || ||| |")  # Fake barcode
+    lines.append("|| ||| || || ||||| || | || ||| |")
     return "\n".join(lines)
 
 def open_checkout_window(on_checkout_complete=None):
-    global selected_medicine
+    global selected_medicine, checkout_window_ref
+    if checkout_window_ref and checkout_window_ref.winfo_exists():
+        messagebox.showinfo("Window Already Open", "Checkout window is already open.")
+        checkout_window_ref.lift()
+        return
+
     selected_medicine = None
     cart.clear()
 
-    window = tb.Toplevel()
-    window.title("Medicine Checkout")
-    window.geometry("860x640")
+    checkout_window_ref = tb.Toplevel()
+    checkout_window_ref.title("Medicine Checkout")
+    checkout_window_ref.geometry("860x640")
 
-    tb.Label(window, text="💊 Pharmacy Checkout", font=("Segoe UI", 16, "bold")).pack(pady=10)
+    def on_close():
+        global checkout_window_ref
+        if checkout_window_ref is not None:
+            checkout_window_ref.destroy()
+            checkout_window_ref = None
 
-    # Search Section
-    search_frame = tb.Labelframe(window, text="Search Medicine", padding=10)
+    checkout_window_ref.protocol("WM_DELETE_WINDOW", on_close)
+
+    tb.Label(checkout_window_ref, text="💊 Pharmacy Checkout", font=("Segoe UI", 16, "bold")).pack(pady=10)
+
+    search_frame = tb.Labelframe(checkout_window_ref, text="Search Medicine", padding=10)
     search_frame.pack(fill="x", padx=20, pady=5)
 
     inner_search_frame = tb.Frame(search_frame)
@@ -88,8 +100,7 @@ def open_checkout_window(on_checkout_complete=None):
 
     result_box.bind("<<ListboxSelect>>", on_select)
 
-    # Add to Cart Section
-    qty_frame = tb.Labelframe(window, text="Add to Cart", padding=10)
+    qty_frame = tb.Labelframe(checkout_window_ref, text="Add to Cart", padding=10)
     qty_frame.pack(fill="x", padx=20, pady=5)
 
     tb.Label(qty_frame, text="Quantity:").pack(side="left")
@@ -97,17 +108,14 @@ def open_checkout_window(on_checkout_complete=None):
     qty_entry.pack(side="left", padx=(5, 10))
 
     columns = ("name", "qty", "price", "subtotal")
-    cart_tree = ttk.Treeview(window, columns=columns, show="headings", height=8)
-    cart_tree.heading("name", text="Medicine")
-    cart_tree.heading("qty", text="Qty")
-    cart_tree.heading("price", text="Price")
-    cart_tree.heading("subtotal", text="Subtotal")
+    cart_tree = ttk.Treeview(checkout_window_ref, columns=columns, show="headings", height=8)
 
     for col in columns:
+        cart_tree.heading(col, text=col.capitalize())
         cart_tree.column(col, anchor="center", width=160)
     cart_tree.pack(fill="both", expand=True, padx=20, pady=(10, 0))
 
-    total_label = tb.Label(window, text="Total: Rs. 0", font=("Segoe UI", 11, "bold"), foreground="green")
+    total_label = tb.Label(checkout_window_ref, text="Total: Rs. 0", font=("Segoe UI", 11, "bold"), foreground="green")
     total_label.pack(anchor="e", padx=20, pady=(5, 0))
 
     def update_total():
@@ -153,7 +161,7 @@ def open_checkout_window(on_checkout_complete=None):
                     break
         update_total()
 
-    tb.Button(window, text="🗑 Remove Selected Item", command=remove_selected_cart_item,
+    tb.Button(checkout_window_ref, text="🗑 Remove Selected Item", command=remove_selected_cart_item,
               bootstyle="danger outline").pack(pady=(5, 0))
 
     def checkout():
@@ -163,8 +171,7 @@ def open_checkout_window(on_checkout_complete=None):
 
         total = round(sum(item["subtotal"] for item in cart), 2)
 
-        # Prompt for cash input
-        cash_win = tb.Toplevel(window)
+        cash_win = tb.Toplevel(checkout_window_ref)
         cash_win.title("Cash Received")
         cash_win.geometry("300x140")
         cash_win.grab_set()
@@ -181,18 +188,18 @@ def open_checkout_window(on_checkout_complete=None):
                     messagebox.showerror("Insufficient Cash", "Cash is less than total amount.")
                     return
                 change = round(cash - total, 2)
-
-                invoice_id = str(uuid.uuid4())[:8]  # Short unique invoice
-
+                invoice_id = "INV-" + datetime.datetime.now().strftime('%Y%m%d%H%M%S')
                 date_str = datetime.datetime.now().strftime('%Y-%m-%d')
                 items_summary = []
+
                 for item in cart:
                     items_summary.append((item['name'], item['qty'], item['price']))
                     med = next((m for m in fetch_all_medicines() if m[0] == item['id']), None)
                     if med:
                         updated_qty = med[5] - item['qty']
                         update_medicine_by_id((med[1], med[2], med[3], med[4], updated_qty, med[6], med[7]), med[0])
-                    insert_sale_record((item['id'], item['name'], item['qty'], item['price'], item['subtotal'], date_str, invoice_id))
+                    insert_sale_record((item['id'], item['name'], item['qty'], item['price'],
+                                        item['subtotal'], date_str, invoice_id))
 
                 receipt_text = generate_receipt_text(items_summary, total, cash, change, invoice_id)
                 file_path = os.path.expanduser(
@@ -206,15 +213,19 @@ def open_checkout_window(on_checkout_complete=None):
                 cart.clear()
                 cart_tree.delete(*cart_tree.get_children())
                 update_total()
+
+                # ✅ Refresh updated quantities in listbox
+                search_entry.delete(0, "end")
+                search()
+
                 if on_checkout_complete:
                     on_checkout_complete()
 
                 cash_win.destroy()
-                window.destroy()
-
+                on_close()
             except ValueError:
                 messagebox.showerror("Invalid Input", "Please enter a valid number.")
 
         tb.Button(cash_win, text="Confirm", command=confirm_cash, bootstyle="success").pack(pady=10)
 
-    tb.Button(window, text="Checkout & Print Slip", bootstyle="primary", command=checkout).pack(pady=15)
+    tb.Button(checkout_window_ref, text="Checkout & Print Slip", bootstyle="primary", command=checkout).pack(pady=15)
