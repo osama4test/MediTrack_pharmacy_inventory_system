@@ -1,11 +1,17 @@
 import sqlite3
 import os
+import shutil
+import datetime
+
+# ---------------- Database Connection ---------------- #
 
 def get_connection():
     folder_path = os.path.expanduser("~/Documents/PharmacyData")
     os.makedirs(folder_path, exist_ok=True)
     db_path = os.path.join(folder_path, "pharmacy.db")
     return sqlite3.connect(db_path)
+
+# ---------------- Table Creation ---------------- #
 
 def create_table():
     conn = get_connection()
@@ -23,7 +29,6 @@ def create_table():
         )
     ''')
 
-    # Add demand column if missing
     cursor.execute("PRAGMA table_info(medicines)")
     medicine_columns = [col[1] for col in cursor.fetchall()]
     if "demand" not in medicine_columns:
@@ -68,7 +73,7 @@ def create_table():
     conn.commit()
     conn.close()
 
-# ---------------- Medicines Table Operations ---------------- #
+# ---------------- Medicines Operations ---------------- #
 
 def insert_medicine(data):
     conn = get_connection()
@@ -143,7 +148,7 @@ def update_medicine(data, old_name, old_batch):
     conn.close()
     return affected > 0
 
-# ---------------- Sales Table Operations ---------------- #
+# ---------------- Sales Operations ---------------- #
 
 def insert_sale_record(sale):
     conn = get_connection()
@@ -179,7 +184,7 @@ def fetch_sales_by_invoice(invoice_id):
     conn.close()
     return rows
 
-# ---------------- Return Table Operations ---------------- #
+# ---------------- Return Operations ---------------- #
 
 def insert_return_record(return_entry):
     conn = get_connection()
@@ -210,12 +215,11 @@ def fetch_total_returned_by_invoice_and_medicine(invoice_id, medicine_id):
     conn.close()
     return result[0] if result and result[0] is not None else 0
 
-# ---------------- Sales Report with Returns ---------------- #
+# ---------------- Reports ---------------- #
 
 def fetch_sales_report_with_returns(start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor()
-
     cursor.execute('''
         SELECT
             s.invoice_id,
@@ -259,8 +263,6 @@ def fetch_sales_report_with_returns(start_date, end_date):
 
     return report_data
 
-# ---------------- Sales with Remaining Qty ---------------- #
-
 def fetch_sales_with_remaining_qty(start_date, end_date=None, invoice_id=None):
     conn = get_connection()
     cursor = conn.cursor()
@@ -296,3 +298,37 @@ def fetch_sales_with_remaining_qty(start_date, end_date=None, invoice_id=None):
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+# ---------------- Automatic Backup ---------------- #
+
+def backup_database():
+    try:
+        original_path = os.path.expanduser("~/Documents/PharmacyData/pharmacy.db")
+        backup_folder = os.path.expanduser("~/Documents/PharmacyData/Backups")
+        os.makedirs(backup_folder, exist_ok=True)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"pharmacy_backup_{timestamp}.db"
+        backup_path = os.path.join(backup_folder, backup_filename)
+
+        shutil.copy2(original_path, backup_path)
+        return backup_path
+    except Exception as e:
+        print(f"Backup failed: {e}")
+        return None
+
+def auto_backup_once_per_day():
+    backup_folder = os.path.expanduser("~/Documents/PharmacyData/Backups")
+    os.makedirs(backup_folder, exist_ok=True)
+
+    today_str = datetime.datetime.now().strftime("%Y%m%d")
+    existing_backups = [f for f in os.listdir(backup_folder) if f.startswith("pharmacy_backup_") and today_str in f]
+
+    if not existing_backups:
+        backup_path = backup_database()
+        print(f"✅ Daily backup created: {backup_path}")
+    else:
+        print("✅ Backup already created for today.")
+
+# ---------------- Trigger Auto Backup on Load ---------------- #
+auto_backup_once_per_day()

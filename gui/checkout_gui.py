@@ -13,30 +13,45 @@ checkout_window_ref = None  # ✅ Global tracker
 
 def generate_receipt_text(items, total, cash, change, invoice_id):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    receipt_width = 42  # Adjust this as needed
+
     lines = []
-    lines.append("        PHARMACY RECEIPT")
-    lines.append("     Address: Shop No. 9, Shangrila Tower, Block 13, Gulistan-e-Johar Karachi, Pakistan")
-    lines.append("*" * 40)
-    lines.append("             CASH RECEIPT")
-    lines.append("*" * 40)
+    lines.append(" " * ((receipt_width - len("PHARMACY RECEIPT")) // 2) + "PHARMACY RECEIPT")
+
+    # Split address if it's too long
+    address = "Shop No. 9, Shangrila Tower, Block 13, Gulistan-e-Johar Karachi, Pakistan"
+    address_lines = [
+        "Shop No. 9, Shangrila Tower, Block 13",
+        "Gulistan-e-Johar, Karachi, Pakistan"
+    ]
+    for line in address_lines:
+        lines.append(" " * ((receipt_width - len(line)) // 2) + line)
+
+    lines.append("*" * receipt_width)
+    lines.append(" " * ((receipt_width - len("CASH RECEIPT")) // 2) + "CASH RECEIPT")
+    lines.append("*" * receipt_width)
     lines.append(f"Date: {now}")
     lines.append(f"Invoice ID: {invoice_id}")
     lines.append("")
-    lines.append(f"{'Description':<25}{'Price':>10}")
+    lines.append(f"{'Description':<25}{'Price':>14}")
 
     for name, qty, price in items:
         subtotal = qty * price
-        lines.append(f"{name} x{qty:<21}{subtotal:>7.2f}")
+        item_line = f"{name} x{qty}"
+        if len(item_line) > 25:
+            item_line = item_line[:22] + "..."
+        lines.append(f"{item_line:<25}{subtotal:>14.2f}")
 
     lines.append("")
-    lines.append("*" * 40)
-    lines.append(f"{'Total':<25}Rs. {total:>7.2f}")
-    lines.append(f"{'Cash':<25}Rs. {cash:>7.2f}")
-    lines.append(f"{'Change':<25}Rs. {change:>7.2f}")
-    lines.append("*" * 40)
-    lines.append("        THANK YOU FOR VISITING!")
-    lines.append("*" * 40)
-    lines.append("|| ||| || || ||||| || | || ||| |")
+    lines.append("*" * receipt_width)
+    lines.append(f"{'Total':<25}Rs. {total:>12.2f}")
+    lines.append(f"{'Cash':<25}Rs. {cash:>12.2f}")
+    lines.append(f"{'Change':<25}Rs. {change:>12.2f}")
+    lines.append("*" * receipt_width)
+    lines.append(" " * ((receipt_width - len("THANK YOU FOR VISITING!")) // 2) + "THANK YOU FOR VISITING!")
+    lines.append("*" * receipt_width)
+    
+
     return "\n".join(lines)
 
 def open_checkout_window(on_checkout_complete=None):
